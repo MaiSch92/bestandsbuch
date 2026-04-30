@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bestandsbuch Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; margin: 0; padding: 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 8pt; } /* Schrift etwas kleiner für mehr Platz */
+            th, td { border: 1px solid black !important; padding: 6px; vertical-align: top; }
+            @page { size: A4 landscape; margin: 8mm; }
+        }
+        /* Optimierte Spaltenbreiten für breitere Anschriften */
+        .col-nr { width: 35px; }
+        .col-date { width: 85px; }
+        .col-desc { width: 140px; }
+        .col-id { width: 120px; }
+        .col-source { width: 260px; } /* Deutlich breiter für Anschrift */
+        .col-out-date { width: 85px; }
+        .col-out-info { width: 260px; } /* Deutlich breiter für Anschrift */
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 font-sans" x-data="bestandsApp()">
+
+    <div class="max-w-[1400px] mx-auto">
+        <!-- Eingabebereich -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8 no-print">
+            <h1 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Bestandsbuch Eingabe</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Tierdaten -->
+                <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-blue-50 rounded border border-blue-100">
+                    <div class="md:col-span-1">
+                        <label class="block text-sm font-medium text-gray-700">Eingangstag</label>
+                        <input type="date" x-model="formData.dateIn" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Wissensch./dt. Bezeichnung</label>
+                        <input type="text" x-model="formData.name" placeholder="z.B. Testudo hermanni" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Alter</label>
+                        <input type="text" x-model="formData.age" placeholder="z.B. NZ 2023" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Geschlecht</label>
+                        <select x-model="formData.sex" class="mt-1 block w-full border rounded p-2 bg-white font-mono">
+                            <option value="">(leer)</option>
+                            <option value="1.0">1.0 (männlich)</option>
+                            <option value="0.1">0.1 (weiblich)</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Herkunftsnachweis (CITES-Nr.)</label>
+                        <input type="text" x-model="formData.proof" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Kennzeichen (Ring/Transp.)</label>
+                        <input type="text" x-model="formData.id" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 font-bold text-blue-600">Stückzahl</label>
+                        <input type="number" min="1" x-model="formData.quantity" class="mt-1 block w-full border-2 border-blue-300 rounded p-2 bg-white font-bold">
+                    </div>
+                </div>
+
+                <!-- Adressdaten Verkäufer/Nachzucht -->
+                <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-green-50 rounded border border-green-100 relative">
+                    <div class="md:col-span-4">
+                        <h3 class="font-bold text-gray-700 mb-1">Anschrift Verkäufer / Eigene Nachzucht</h3>
+                    </div>
+                    
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-gray-700">Vor- und Nachname / Firma</label>
+                        <input type="text" x-model="formData.seller_name" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Land</label>
+                        <select x-model="formData.seller_country" class="mt-1 block w-full border rounded p-2 bg-white">
+                            <option value="DE">DE</option>
+                            <option value="AT">AT</option>
+                            <option value="CH">CH</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">PLZ</label>
+                        <input type="text" x-model="formData.seller_zip" @input.debounce.500ms="fetchCity" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Ort</label>
+                        <input type="text" x-model="formData.seller_city" class="mt-1 block w-full border rounded p-2 bg-white">
+                    </div>
+
+                    <div class="md:col-span-4 relative">
+                        <label class="block text-sm font-medium text-gray-700">Straße</label>
+                        <input type="text" x-model="formData.seller_street" @input.debounce.500ms="fetchStreets" placeholder="Suchen..." autocomplete="off" class="mt-1 block w-full border rounded p-2 bg-white">
+                        
+                        <ul x-show="streetSuggestions.length > 0" @click.away="streetSuggestions = []" class="absolute z-[100] w-full bg-white border border-gray-300 mt-1 rounded shadow-2xl max-h-48 overflow-y-auto">
+                            <template x-for="street in streetSuggestions">
+                                <li @click="selectStreet(street)" x-text="street" class="p-2 hover:bg-blue-100 cursor-pointer text-sm border-b last:border-0"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex gap-4">
+                <button @click="addEntries()" class="bg-blue-600 text-white px-8 py-3 rounded hover:bg-blue-700 transition font-bold shadow-lg">
+                    Hinzufügen
+                </button>
+                <button @click="reset()" class="bg-gray-200 text-gray-700 px-6 py-3 rounded hover:bg-gray-300 transition shadow">
+                    Tabelle leeren
+                </button>
+                <button @click="window.print()" class="bg-green-600 text-white px-8 py-3 rounded hover:bg-green-700 transition flex items-center gap-2 shadow-lg ml-auto font-bold">
+                    <span>PDF / Drucken</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabellenbereich -->
+        <div class="bg-white p-4 shadow-sm overflow-x-auto min-h-[600px]">
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 text-[10px] uppercase font-bold text-center">
+                        <th class="border p-1 col-nr">Nr.</th>
+                        <th class="border p-1 col-date">Eingangstag</th>
+                        <th class="border p-1 col-desc">Bezeichnung / Alter / Sex</th>
+                        <th class="border p-1 col-id">Herkunftsnachweis / Kennzeichen</th>
+                        <th class="border p-1 col-source text-left">Name & Anschrift Verkäufer</th>
+                        <th class="border p-1 col-out-date">Abgang</th>
+                        <th class="border p-1 col-out-info text-left">Name & Anschrift Käufer</th>
+                    </tr>
+                </thead>
+                <tbody class="text-[11px]">
+                    <template x-for="entry in entries" :key="entry.nr">
+                        <tr class="hover:bg-gray-50">
+                            <td class="border p-2 text-center" x-text="entry.nr"></td>
+                            <td class="border p-2 text-center" x-text="entry.dateIn"></td>
+                            <td class="border p-2">
+                                <div class="font-bold uppercase" x-text="entry.name"></div>
+                                <div class="text-[10px] text-gray-700" x-text="entry.age + (entry.sex ? ' | ' + entry.sex : '')"></div>
+                            </td>
+                            <td class="border p-2">
+                                <div x-text="entry.proof"></div>
+                                <div class="text-[10px] font-mono text-gray-500 mt-1" x-text="entry.id"></div>
+                            </td>
+                            <td class="border p-2 leading-tight whitespace-pre-line" x-text="entry.sellerFormatted"></td>
+                            <td class="border p-2"></td>
+                            <td class="border p-2"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function bestandsApp() {
+            return {
+                entries: [],
+                streetSuggestions: [],
+                formData: {
+                    dateIn: '', name: '', age: '', sex: '', proof: '', id: '', quantity: 1,
+                    seller_name: '', seller_street: '', seller_zip: '', seller_city: '', seller_country: 'DE'
+                },
+                
+                async fetchCity() {
+                    if(this.formData.seller_country === 'DE' && this.formData.seller_zip.length === 5) {
+                        try {
+                            let res = await fetch(`https://api.zippopotam.us/de/${this.formData.seller_zip}`);
+                            if(res.ok) {
+                                let data = await res.json();
+                                this.formData.seller_city = data.places[0]['place name'];
+                            }
+                        } catch(e) {}
+                    }
+                },
+
+                async fetchStreets() {
+                    let city = this.formData.seller_city;
+                    let streetQuery = this.formData.seller_street;
+                    if(streetQuery.length > 2 && city) {
+                        let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(streetQuery)}+${encodeURIComponent(city)}&format=json&addressdetails=1&limit=8`;
+                        try {
+                            let res = await fetch(url, { headers: { 'User-Agent': 'Bestandsbuch-Tool-V1' } });
+                            if(res.ok) {
+                                let data = await res.json();
+                                let streets = data.map(item => item.address.road || item.address.pedestrian).filter(Boolean);
+                                this.streetSuggestions = [...new Set(streets)];
+                            }
+                        } catch(e) {}
+                    } else { this.streetSuggestions = []; }
+                },
+
+                selectStreet(street) {
+                    this.formData.seller_street = street;
+                    this.streetSuggestions = [];
+                },
+
+                addEntries() {
+                    let formattedAddress = `${this.formData.seller_name}\n${this.formData.seller_street}\n${this.formData.seller_country}-${this.formData.seller_zip} ${this.formData.seller_city}`;
+                    
+                    for(let i=0; i < parseInt(this.formData.quantity); i++) {
+                        this.entries.push({
+                            nr: this.entries.length + 1,
+                            dateIn: this.formData.dateIn ? new Date(this.formData.dateIn).toLocaleDateString('de-DE') : '',
+                            name: this.formData.name,
+                            age: this.formData.age, 
+                            sex: this.formData.sex,
+                            proof: this.formData.proof, 
+                            id: this.formData.id,
+                            sellerFormatted: formattedAddress.trim()
+                        });
+                    }
+                },
+                reset() { this.entries = []; }
+            }
+        }
+    </script>
+</body>
+</html>
